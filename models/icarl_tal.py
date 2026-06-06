@@ -5,7 +5,7 @@ from utils.tal import TAL_Loss
 class iCaRLTAL(iCaRL):
     def __init__(self, args):
         super().__init__(args)
-        self.tal = TAL_Loss(t=0.995, r=1)
+        self.tal = TAL_Loss(lambda_=0.995, r=1)
 
     def _before_train_task(self):
         self.tal.update_class_num(self._total_classes)

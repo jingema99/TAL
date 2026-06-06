@@ -16,7 +16,7 @@ EPSILON = 1e-8
 weight_decay = 2e-4
 num_workers = 8
 T = 2
-RECALIB_ALPHA = True
+ALPHA_RECALIBRATION = True
 
 class DER(BaseLearner):
     def __init__(self, args):
@@ -24,9 +24,9 @@ class DER(BaseLearner):
         self.args = args
 
         self.tal = TAL_Loss(
-            t=0.999,
+            lambda_=0.999,
             r=0.2,
-            recalib_alpha=RECALIB_ALPHA,
+            alpha_recalibration=ALPHA_RECALIBRATION,
         )
 
         self._network = DERNet(args, False)
@@ -35,8 +35,8 @@ class DER(BaseLearner):
         self._known_classes = self._total_classes
         logging.info("Exemplar size: {}".format(self.exemplar_size))
         # Optional per-task summary for epoch-version TAL implementations.
-        if hasattr(self.tal, "group_mean_Q_s"):
-            stats = self.tal.group_mean_Q_s(group_size=10, upto_classes=self._total_classes)
+        if hasattr(self.tal, "group_mean_Q_w"):
+            stats = self.tal.group_mean_Q_w(group_size=10, upto_classes=self._total_classes)
             if stats:
                 logging.info(f"[TAL] Task {self._cur_task} Q/w group means (group_size=10):")
                 for item in stats:
