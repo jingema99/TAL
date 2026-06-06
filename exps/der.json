@@ -1,6 +1,6 @@
 {
-    "prefix": "reproduce",
-    "dataset": "cifar100",
+    "prefix": "CE2000",
+    "dataset": "imagenet100",
     "memory_size": 2000,
     "memory_per_class": 20,
     "fixed_memory": false,
@@ -8,7 +8,29 @@
     "init_cls": 10,
     "increment": 10,
     "model_name": "der",
-    "convnet_type": "resnet32",
-    "device": ["0","1","2","3"],
-    "seed": [1993]
+    "convnet_type": "resnet18",
+    "device": [
+        "0"
+    ],
+    "seed": [
+        1999
+    ],
+    "init_epoch": 100,
+    "init_lr": 0.1,
+    "init_milestones": [
+        60,
+        120,
+        170
+    ],
+    "init_lr_decay": 0.1,
+    "init_weight_decay": 0.0005,
+    "epochs": 100,
+    "lrate": 0.1,
+    "milestones": [
+        80,
+        120,
+        150
+    ],
+    "lrate_decay": 0.1,
+    "batch_size": 128
 }

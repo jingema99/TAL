@@ -27,12 +27,13 @@ def _train(args):
     if not os.path.exists(logs_name):
         os.makedirs(logs_name)
 
-    logfilename = "logs/{}/{}/{}/{}/{}_{}_{}".format(
+    logfilename = "logs/{}/{}/{}/{}/{}_{}_{}_{}".format(
         args["model_name"],
         args["dataset"],
         init_cls,
         args["increment"],
         args["prefix"],
+        args["init_epoch"],
         args["seed"],
         args["convnet_type"],
     )
@@ -60,6 +61,7 @@ def _train(args):
 
     cnn_curve, nme_curve = {"top1": [], "top5": []}, {"top1": [], "top5": []}
     cnn_matrix, nme_matrix = [], []
+    skip_cnn_acc = args["model_name"].lower().endswith("_tal")
 
     for task in range(data_manager.nb_tasks):
         logging.info("All params: {}".format(count_parameters(model._network)))
@@ -67,17 +69,19 @@ def _train(args):
             "Trainable params: {}".format(count_parameters(model._network, True))
         )
         model.incremental_train(data_manager)
-        cnn_accy, nme_accy = model.eval_task()
+        cnn_accy, nme_accy = model.eval_task(skip_cnn=skip_cnn_acc)
         model.after_task()
 
         if nme_accy is not None:
-            logging.info("CNN: {}".format(cnn_accy["grouped"]))
+            if not skip_cnn_acc:
+                logging.info("CNN: {}".format(cnn_accy["grouped"]))
             logging.info("NME: {}".format(nme_accy["grouped"]))
 
-            cnn_keys = [key for key in cnn_accy["grouped"].keys() if '-' in key]
-            cnn_keys_sorted = sorted(cnn_keys)
-            cnn_values = [cnn_accy["grouped"][key] for key in cnn_keys_sorted]
-            cnn_matrix.append(cnn_values)
+            if not skip_cnn_acc:
+                cnn_keys = [key for key in cnn_accy["grouped"].keys() if '-' in key]
+                cnn_keys_sorted = sorted(cnn_keys)
+                cnn_values = [cnn_accy["grouped"][key] for key in cnn_keys_sorted]
+                cnn_matrix.append(cnn_values)
 
             nme_keys = [key for key in nme_accy["grouped"].keys() if '-' in key]
             nme_keys_sorted = sorted(nme_keys)
@@ -85,24 +89,31 @@ def _train(args):
             nme_matrix.append(nme_values)
 
 
-            cnn_curve["top1"].append(cnn_accy["top1"])
-            cnn_curve["top5"].append(cnn_accy["top5"])
+            if not skip_cnn_acc:
+                cnn_curve["top1"].append(cnn_accy["top1"])
+                cnn_curve["top5"].append(cnn_accy["top5"])
 
             nme_curve["top1"].append(nme_accy["top1"])
             nme_curve["top5"].append(nme_accy["top5"])
 
-            logging.info("CNN top1 curve: {}".format(cnn_curve["top1"]))
-            logging.info("CNN top5 curve: {}".format(cnn_curve["top5"]))
+            if not skip_cnn_acc:
+                logging.info("CNN top1 curve: {}".format(cnn_curve["top1"]))
+                logging.info("CNN top5 curve: {}".format(cnn_curve["top5"]))
             logging.info("NME top1 curve: {}".format(nme_curve["top1"]))
             logging.info("NME top5 curve: {}\n".format(nme_curve["top5"]))
 
-            print('Average Accuracy (CNN):', sum(cnn_curve["top1"])/len(cnn_curve["top1"]))
+            if not skip_cnn_acc:
+                print('Average Accuracy (CNN):', sum(cnn_curve["top1"])/len(cnn_curve["top1"]))
             print('Average Accuracy (NME):', sum(nme_curve["top1"])/len(nme_curve["top1"]))
 
-            logging.info("Average Accuracy (CNN): {}".format(sum(cnn_curve["top1"])/len(cnn_curve["top1"])))
+            if not skip_cnn_acc:
+                logging.info("Average Accuracy (CNN): {}".format(sum(cnn_curve["top1"])/len(cnn_curve["top1"])))
             logging.info("Average Accuracy (NME): {}".format(sum(nme_curve["top1"])/len(nme_curve["top1"])))
         else:
             logging.info("No NME accuracy.")
+            if skip_cnn_acc:
+                continue
+
             logging.info("CNN: {}".format(cnn_accy["grouped"]))
 
             cnn_keys = [key for key in cnn_accy["grouped"].keys() if '-' in key]

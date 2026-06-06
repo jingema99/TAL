@@ -9,32 +9,92 @@ from torch.utils.data import DataLoader
 from models.base import BaseLearner
 from utils.inc_net import IncrementalNet
 from utils.inc_net import CosineIncrementalNet
-from utils.toolkit import target2onehot, tensor2numpy
-
+from utils.toolkit import log_precision_recall, target2onehot, tensor2numpy
+import os
 EPSILON = 1e-8
 
-init_epoch = 200
-init_lr = 0.1
-init_milestones = [60, 120, 170]
-init_lr_decay = 0.1
-init_weight_decay = 0.0005
+# init_epoch = 200
+# init_lr = 0.1
+# init_milestones = [60, 120, 170]
+# init_lr_decay = 0.1
+# init_weight_decay = 0.0005
 
 
-epochs = 170
-lrate = 0.1
-milestones = [80, 120]
-lrate_decay = 0.1
-batch_size = 128
-weight_decay = 2e-4
+# epochs = 170
+# lrate = 0.1
+# milestones = [80, 120]
+# lrate_decay = 0.1
+# batch_size = 128
+# weight_decay = 2e-4
 num_workers = 8
 T = 2
 
+#best parameters: t = 0.999, r = 2
 
 class iCaRL(BaseLearner):
     def __init__(self, args):
         super().__init__(args)
+        self.args = args
         self._network = IncrementalNet(args, False)
 
+    def _before_train_task(self):
+        pass
+
+    def _classification_loss(self, logits, targets):
+        return F.cross_entropy(logits, targets)
+
+    def _feature_dump_dir(self):
+        return "[PROJECT_ROOT]/fig/ce"
+        
+    def _dump_test_features(self, save_dir: str = None, use_forward_features: bool = False):
+        """
+        遍历 self.test_loader，把特征和标签保存为 .pt 文件。
+        - save_dir: 保存目录，默认 ./feat_dumps
+        - use_forward_features: True 时用 forward 返回的 out['features']；否则用 extract_vector()
+        """
+        self._network.eval()
+        net = self._network.module if hasattr(self._network, "module") else self._network
+
+        save_dir = save_dir or self.args.get("feat_dump_dir", "./feat_dumps")
+        os.makedirs(save_dir, exist_ok=True)
+
+        all_feats, all_labels, all_indices = [], [], []
+
+        device = self._device
+        for indices, inputs, targets in self.test_loader:
+            inputs = inputs.to(device, non_blocking=True)
+
+            # 提取特征
+            if not use_forward_features:
+                feats = net.extract_vector(inputs)   # shape (B, D)
+            else:
+                out = net(inputs)
+                feats = out["features"]
+
+            all_feats.append(feats.cpu())
+            all_labels.append(targets.cpu())
+            all_indices.append(indices.cpu() if torch.is_tensor(indices) else torch.tensor(indices))
+
+        # 拼接成大张量
+        all_feats = torch.cat(all_feats, dim=0)
+        all_labels = torch.cat(all_labels, dim=0)
+        all_indices = torch.cat(all_indices, dim=0)
+
+        tag = getattr(self, "_cur_task", 0)
+        csv_name = self.args.get("csv_name", "exp")
+        fname = os.path.join(save_dir, f"{csv_name}_task{tag:02d}_test_feats.pt")
+
+        torch.save({
+            "features": all_feats,       # (N, D) float tensor
+            "labels": all_labels,        # (N,) long tensor
+            "indices": all_indices,      # (N,) long tensor
+            "total_classes": self._total_classes,
+            "known_classes": self._known_classes,
+            "task_id": tag,
+        }, fname)
+
+        logging.info(f"[FeatureDump] Saved test features to: {fname}")
+        
     def after_task(self):
         self._old_network = self._network.copy().freeze()
         self._known_classes = self._total_classes
@@ -49,6 +109,7 @@ class iCaRL(BaseLearner):
         logging.info(
             "Learning on {}-{}".format(self._known_classes, self._total_classes)
         )
+        self._before_train_task()
 
         train_dataset = data_manager.get_dataset(
             np.arange(self._known_classes, self._total_classes),
@@ -57,13 +118,13 @@ class iCaRL(BaseLearner):
             appendent=self._get_memory(),
         )
         self.train_loader = DataLoader(
-            train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers
+            train_dataset, batch_size=self.args["batch_size"], shuffle=True, num_workers=num_workers
         )
         test_dataset = data_manager.get_dataset(
             np.arange(0, self._total_classes), source="test", mode="test"
         )
         self.test_loader = DataLoader(
-            test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers
+            test_dataset, batch_size=self.args["batch_size"], shuffle=False, num_workers=num_workers
         )
 
         if len(self._multiple_gpus) > 1:
@@ -82,27 +143,35 @@ class iCaRL(BaseLearner):
             optimizer = optim.SGD(
                 self._network.parameters(),
                 momentum=0.9,
-                lr=init_lr,
-                weight_decay=init_weight_decay,
+                lr=self.args["init_lr"],
+                weight_decay=self.args["init_weight_decay"],
             )
             scheduler = optim.lr_scheduler.MultiStepLR(
-                optimizer=optimizer, milestones=init_milestones, gamma=init_lr_decay
+                optimizer=optimizer, milestones=self.args["init_milestones"], gamma=self.args["init_lr_decay"]
             )
             self._init_train(train_loader, test_loader, optimizer, scheduler)
         else:
             optimizer = optim.SGD(
                 self._network.parameters(),
-                lr=lrate,
+                lr=self.args["lrate"],
                 momentum=0.9,
-                weight_decay=weight_decay,
+                weight_decay=self.args["weight_decay"],
             )  # 1e-5
             scheduler = optim.lr_scheduler.MultiStepLR(
-                optimizer=optimizer, milestones=milestones, gamma=lrate_decay
+                optimizer=optimizer, milestones=self.args["milestones"], gamma=self.args["lrate_decay"]
             )
             self._update_representation(train_loader, test_loader, optimizer, scheduler)
+            
+        if self._cur_task == 9:  
+            log_precision_recall(
+                network=self._network, 
+                test_loader=self.test_loader, 
+                total_classes=self._total_classes, 
+                current_task=self._cur_task, 
+                device=self._device) 
 
     def _init_train(self, train_loader, test_loader, optimizer, scheduler):
-        prog_bar = tqdm(range(init_epoch))
+        prog_bar = tqdm(range(self.args["init_epoch"]))
         for _, epoch in enumerate(prog_bar):
             self._network.train()
             losses = 0.0
@@ -111,7 +180,7 @@ class iCaRL(BaseLearner):
                 inputs, targets = inputs.to(self._device), targets.to(self._device)
                 logits = self._network(inputs)["logits"]
 
-                loss = F.cross_entropy(logits, targets)
+                loss = self._classification_loss(logits, targets)
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
@@ -129,7 +198,7 @@ class iCaRL(BaseLearner):
                 info = "Task {}, Epoch {}/{} => Loss {:.3f}, Train_accy {:.2f}, Test_accy {:.2f}".format(
                     self._cur_task,
                     epoch + 1,
-                    init_epoch,
+                    self.args["init_epoch"],
                     losses / len(train_loader),
                     train_acc,
                     test_acc,
@@ -138,7 +207,7 @@ class iCaRL(BaseLearner):
                 info = "Task {}, Epoch {}/{} => Loss {:.3f}, Train_accy {:.2f}".format(
                     self._cur_task,
                     epoch + 1,
-                    init_epoch,
+                    self.args["init_epoch"],
                     losses / len(train_loader),
                     train_acc,
                 )
@@ -147,8 +216,9 @@ class iCaRL(BaseLearner):
 
         logging.info(info)
 
+
     def _update_representation(self, train_loader, test_loader, optimizer, scheduler):
-        prog_bar = tqdm(range(epochs))
+        prog_bar = tqdm(range(self.args["epochs"]))
         for _, epoch in enumerate(prog_bar):
             self._network.train()
             losses = 0.0
@@ -157,7 +227,7 @@ class iCaRL(BaseLearner):
                 inputs, targets = inputs.to(self._device), targets.to(self._device)
                 logits = self._network(inputs)["logits"]
 
-                loss_clf = F.cross_entropy(logits, targets)
+                loss_clf = self._classification_loss(logits, targets)
                 loss_kd = _KD_loss(
                     logits[:, : self._known_classes],
                     self._old_network(inputs)["logits"],
@@ -182,7 +252,7 @@ class iCaRL(BaseLearner):
                 info = "Task {}, Epoch {}/{} => Loss {:.3f}, Train_accy {:.2f}, Test_accy {:.2f}".format(
                     self._cur_task,
                     epoch + 1,
-                    epochs,
+                    self.args["epochs"],
                     losses / len(train_loader),
                     train_acc,
                     test_acc,
@@ -191,12 +261,14 @@ class iCaRL(BaseLearner):
                 info = "Task {}, Epoch {}/{} => Loss {:.3f}, Train_accy {:.2f}".format(
                     self._cur_task,
                     epoch + 1,
-                    epochs,
+                    self.args["epochs"],
                     losses / len(train_loader),
                     train_acc,
                 )
             prog_bar.set_description(info)
         logging.info(info)
+
+        self._dump_test_features(save_dir=self._feature_dump_dir())
 
 
 def _KD_loss(pred, soft, T):

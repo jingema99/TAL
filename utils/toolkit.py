@@ -1,8 +1,10 @@
 import os
+import logging
 import numpy as np
 import torch
 import  json
 from enum import Enum
+from sklearn.metrics import precision_score, recall_score
 
 class ConfigEncoder(json.JSONEncoder):
     def default(self, o):
@@ -86,6 +88,47 @@ def split_images_labels(imgs):
         labels.append(item[1])
 
     return np.array(images), np.array(labels)
+
+
+def log_precision_recall(network, test_loader, total_classes, current_task, device, group_size=10):
+    network.eval()
+    all_preds = []
+    all_targets = []
+
+    with torch.no_grad():
+        for _, inputs, targets in test_loader:
+            inputs, targets = inputs.to(device), targets.to(device)
+            logits = network(inputs)["logits"]
+            _, preds = torch.max(logits, dim=1)
+            all_preds.extend(tensor2numpy(preds))
+            all_targets.extend(tensor2numpy(targets))
+
+    all_preds = np.array(all_preds)
+    all_targets = np.array(all_targets)
+
+    precision_per_class = precision_score(
+        all_targets, all_preds, average=None, labels=np.arange(total_classes)
+    )
+    recall_per_class = recall_score(
+        all_targets, all_preds, average=None, labels=np.arange(total_classes)
+    )
+
+    num_groups = (total_classes + group_size - 1) // group_size
+    for group_id in range(num_groups):
+        start = group_id * group_size
+        end = min((group_id + 1) * group_size, total_classes)
+        precision_avg = precision_per_class[start:end].mean()
+        recall_avg = recall_per_class[start:end].mean()
+
+        logging.info(
+            f"Task {current_task}, Class Group {start:02d}-{end - 1:02d} => "
+            f"Precision: {precision_avg:.3f}, Recall: {recall_avg:.3f}"
+        )
+
+    overall_accuracy = np.mean(all_preds == all_targets) * 100.0
+    logging.info(f"Task {current_task} => Overall Test Accuracy: {overall_accuracy:.2f}%")
+    print(f"Overall Test Accuracy: {overall_accuracy:.2f}%")
+    network.train()
 
 def save_fc(args, model):
     _path = os.path.join(args['logfilename'], "fc.pt")

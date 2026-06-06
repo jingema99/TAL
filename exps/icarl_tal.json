@@ -1,0 +1,37 @@
+{
+    "prefix": "talloss",
+    "dataset": "cifar100",
+    "memory_size": 2000,
+    "memory_per_class": 20,
+    "fixed_memory": true,
+    "shuffle": true,
+    "init_cls": 10,
+    "increment": 10,
+    "model_name": "icarl_tal",
+    "convnet_type": "resnet32",
+    "use_modified_loss": true,
+    "device": [
+        "1"
+    ],
+    "seed": [
+        1993
+    ],
+    "init_epoch": 100,
+    "init_lr": 0.1,
+    "init_milestones": [
+        60,
+        120,
+        170
+    ],
+    "init_lr_decay": 0.1,
+    "init_weight_decay": 0.0005,
+    "epochs": 100,
+    "lrate": 0.1,
+    "milestones": [
+        80,
+        120
+    ],
+    "lrate_decay": 0.1,
+    "batch_size": 128,
+    "weight_decay": 0.0002
+}
