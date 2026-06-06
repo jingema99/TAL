@@ -8,7 +8,7 @@ Slides: [TAL slides](https://example.com/tal-slides)
 
 ## Status
 
-The code is still being completed and cleaned up. We are releasing the core implementation and minimal reproduction scripts first; documentation, broader experiment coverage, and packaging will be improved over time.
+The code is still being completed and cleaned up. Documentation and packaging will be improved over time.
 
 ## Usage
 
