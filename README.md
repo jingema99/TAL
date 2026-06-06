@@ -43,10 +43,11 @@ For ImageNet-100, update the dataset paths or file lists in `utils/data.py` and 
 If you find this repository useful, please cite:
 
 ```bibtex
-@article{ma2026temporal,
+@inproceedings{ma2026temporal,
   title={Temporal Imbalance of Positive and Negative Supervision in Class-Incremental Learning},
   author={Ma, Jinge and Zhu, Fengqing},
-  journal={arXiv preprint arXiv:2603.02280},
+  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
+  pages={32299--32308},
   year={2026}
 }
 ```
