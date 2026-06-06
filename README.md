@@ -36,8 +36,6 @@ bash scripts/der.sh
 bash scripts/der_tal.sh
 ```
 
-From another directory, invoke the script by its path, for example `bash /path/to/TAL/scripts/icarl_tal.sh`.
-
 For ImageNet-100, update the dataset paths or file lists in `utils/data.py` and `data/imagenet_subset/` for your local environment.
 
 ## Citation
