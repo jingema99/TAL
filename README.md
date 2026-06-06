@@ -14,27 +14,29 @@ Slides: [TAL slides](https://example.com/tal-slides)
 
 Install the required Python dependencies, including PyTorch, torchvision, numpy, scipy, tqdm, scikit-learn, and POT.
 
-Run an experiment from the repository root with:
+From the repository root, run an experiment with:
 
 ```bash
 python main.py --config=./exps/[CONFIG].json
 ```
 
-Current reproduction entries:
+The reproduction scripts in `scripts/` automatically switch to the repository root. From the repository root, use:
 
 ```bash
 # iCaRL on CIFAR-100
-bash icarl.sh
+bash scripts/icarl.sh
 
 # iCaRL + TAL on CIFAR-100
-bash icarl_tal.sh
+bash scripts/icarl_tal.sh
 
 # DER on ImageNet-100
-bash der.sh
+bash scripts/der.sh
 
 # DER + TAL on ImageNet-100
-bash der_tal.sh
+bash scripts/der_tal.sh
 ```
+
+From another directory, invoke the script by its path, for example `bash /path/to/TAL/scripts/icarl_tal.sh`.
 
 For ImageNet-100, update the dataset paths or file lists in `utils/data.py` and `data/imagenet_subset/` for your local environment.
 
