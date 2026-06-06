@@ -2,7 +2,7 @@
 
 This repository contains the official implementation of the CVPR 2026 paper [Temporal Imbalance of Positive and Negative Supervision in Class-Incremental Learning](https://arxiv.org/abs/2603.02280).
 
-TAL studies temporal imbalance in class-incremental learning and dynamically reweights negative supervision in cross-entropy loss. This codebase is built on top of PyCIL and currently focuses on the reproduction paths used in our released experiments.
+TAL studies temporal imbalance in class-incremental learning and dynamically reweights negative supervision in cross-entropy loss. The code framework is based on [PyCIL](https://github.com/LAMDA-CL/PyCIL), with TAL added as the core loss implementation and integrated into selected class-incremental learning baselines. This repository currently focuses on the reproduction paths used in our released experiments.
 
 Slides: [TAL slides](https://example.com/tal-slides)
 
